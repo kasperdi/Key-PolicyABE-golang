@@ -2,6 +2,7 @@ package gpsw
 
 import (
 	"crypto/rand"
+	"fmt"
 	"log"
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
@@ -26,13 +27,13 @@ type CipherText struct {
 }
 
 type AccessTree struct {
-	Root AccessTreeNode
+	Root *AccessTreeNode
 }
 
 type AccessTreeNode struct {
 	Attribute *int            // only exists if leaf
 	Parent    *AccessTreeNode // only exists if not root
-	Children  []AccessTreeNode
+	Children  []*AccessTreeNode
 	Index     int
 	K         int
 }
@@ -41,6 +42,8 @@ type DecryptionKey struct {
 	D map[*AccessTreeNode]*bls.G1
 	T AccessTree
 }
+
+type Polynomial []bls.Scalar
 
 func Setup(n int) (MasterKey, PublicParameters) {
 	// Generate master key
@@ -87,14 +90,62 @@ func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) CipherText {
 }
 
 func KeyGen(tree AccessTree, mk MasterKey) DecryptionKey {
-	panic("Not implemented")
 
 	// First choose q_x for each node x top down starting from the root
-
-	// degree of each node d_x = k_x - 1
+	polyMap := make(map[*AccessTreeNode]Polynomial)
+	polyMap = GenPolyRecursive(mk.Y, tree.Root, polyMap)
 
 	// Compute D_x
+	Dxmap := make(map[*AccessTreeNode]*bls.G1)
 
+	for key, val := range polyMap {
+		// If node is leaf
+		if len(key.Children) == 0 {
+
+			i := *key.Attribute
+
+			DxExponent := new(bls.Scalar)
+
+			DxExponent.Inv(mk.T[i])
+			DxExponent.Mul(EvalPoly(val, 0), DxExponent)
+
+			Dx := new(bls.G1)
+			Dx.ScalarMult(DxExponent, bls.G1Generator())
+			Dxmap[key] = Dx
+		}
+	}
+
+	return DecryptionKey{D: Dxmap, T: tree}
+
+}
+
+func GenPolyRecursive(q0 *bls.Scalar, x *AccessTreeNode, polyMap map[*AccessTreeNode]Polynomial) map[*AccessTreeNode]Polynomial {
+	resMap := polyMap
+	// degree of each node d_x = k_x - 1
+	currentPoly := constructSecretPoly(*q0, x.K-1)
+	resMap[x] = currentPoly
+
+	for _, val := range x.Children {
+		resMap = GenPolyRecursive(EvalPoly(currentPoly, val.Index), val, resMap)
+	}
+
+	return resMap
+}
+
+func EvalPoly(poly Polynomial, arg int) *bls.Scalar {
+	argument := new(bls.Scalar)
+	argument.SetUint64(uint64(arg))
+
+	result := new(bls.Scalar)
+	result.Set(&poly[0])
+	for i := 1; i < len(poly); i++ {
+		toAdd := new(bls.Scalar)
+		toAdd.Mul(&poly[i], argument)
+
+		result.Add(result, toAdd)
+	}
+
+	return result
 }
 
 func Decrypt(C CipherText, D DecryptionKey) (*bls.Gt, bool) {
@@ -102,12 +153,20 @@ func Decrypt(C CipherText, D DecryptionKey) (*bls.Gt, bool) {
 
 }
 
-func DecryptNode(C CipherText, D DecryptionKey, x AccessTreeNode) (*bls.Gt, bool) {
-	i := x.Attribute
-	if i != nil { // Node is a leaf node
-		_, contains := C.attrs[*i]
+func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, bool) {
+	if x.Attribute != nil { // Node is a leaf node
+		i := *x.Attribute
+		_, contains := C.attrs[i]
 		if contains {
-			return bls.Pair(D.D[&x], C.E[*i]), true
+
+			fmt.Println("E_i")
+			fmt.Println(C.E[i].String())
+			fmt.Println("Parent")
+			fmt.Println(x.Parent)
+			fmt.Println("D_x")
+			fmt.Println(D.D[x].String())
+
+			return bls.Pair(D.D[x], C.E[i]), true
 		} else {
 			return nil, false
 		}
@@ -118,7 +177,7 @@ func DecryptNode(C CipherText, D DecryptionKey, x AccessTreeNode) (*bls.Gt, bool
 	for _, z := range x.Children {
 		Fz, success := DecryptNode(C, D, z)
 		if success {
-			F[&z] = Fz
+			F[z] = Fz
 		}
 	}
 
@@ -146,10 +205,12 @@ func DecryptNode(C CipherText, D DecryptionKey, x AccessTreeNode) (*bls.Gt, bool
 	Fx := new(bls.Gt)
 	Fx.SetIdentity()
 	for _, Fz := range Sx {
-		Fz_exp_lagrange := new(bls.Gt)
 		i_scalar := new(bls.Scalar)
-		i_scalar.SetUint64(uint64(*i))
+		i_scalar.SetUint64(uint64(x.Index))
+
+		Fz_exp_lagrange := new(bls.Gt)
 		Fz_exp_lagrange.Exp(Fz, calculateLagrangeCoefficientZero(i_scalar, SxPrime))
+
 		Fx.Mul(Fx, Fz_exp_lagrange)
 	}
 
@@ -180,4 +241,15 @@ func calculateLagrangeCoefficientZero(i *bls.Scalar, s []*bls.Scalar) *bls.Scala
 	}
 
 	return res
+}
+
+func constructSecretPoly(secret bls.Scalar, deg int) Polynomial {
+	poly := make([]bls.Scalar, deg+1)
+	poly[0] = secret
+	for i := 1; i < deg+1; i++ {
+		coefficient := new(bls.Scalar)
+		coefficient.Random(rand.Reader)
+		poly[i] = *coefficient
+	}
+	return poly
 }
