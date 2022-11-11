@@ -1,7 +1,6 @@
 package gpsw
 
 import (
-	"bytes"
 	"crypto/rand"
 	"testing"
 
@@ -10,12 +9,22 @@ import (
 
 var Empty struct{}
 
-func TestEncryptDecrypt(t *testing.T) {
-	M_bytes := make([]byte, 32)
-	rand.Read(M_bytes)
+func arbitraryGtPoint(n int) *bls.Gt {
+	M1_bytes := make([]byte, n)
+	rand.Read(M1_bytes)
+	G1 := new(bls.G1)
+	G1.Hash(M1_bytes, nil)
 
-	M := new(bls.Gt)
-	M.UnmarshalBinary(M_bytes)
+	M2_bytes := make([]byte, n)
+	rand.Read(M2_bytes)
+	G2 := new(bls.G2)
+	G2.Hash(M2_bytes, nil)
+
+	return bls.Pair(G1, G2)
+}
+
+func TestEncryptDecrypt(t *testing.T) {
+	M := arbitraryGtPoint(32)
 
 	MK, PP := Setup(3)
 
@@ -57,16 +66,47 @@ func TestEncryptDecrypt(t *testing.T) {
 	D := KeyGen(aTree, MK)
 
 	attrs := make(AttributeSet)
-	attrs[1] = Empty
 	attrs[0] = Empty
+	attrs[1] = Empty
 
 	C := Encrypt(M, attrs, PP)
-
 	M_decrypted, _ := Decrypt(C, D)
-	M_decrypted_bytes, _ := M_decrypted.MarshalBinary()
 
-	if !bytes.Equal(M_bytes, M_decrypted_bytes) {
+	if !M.IsEqual(M_decrypted) {
 		t.Errorf("Error: Decrypt(Encrypt(M)) != M")
+	}
+
+}
+
+func TestEncryptDecryptTNotSat(t *testing.T) {
+	M := arbitraryGtPoint(32)
+
+	MK, PP := Setup(3)
+
+	att0 := new(int)
+	*att0 = 0
+
+	rootNode := AccessTreeNode{
+		Attribute: att0,
+		Parent:    nil,
+		Children:  make([]*AccessTreeNode, 0),
+		Index:     1,
+		K:         1,
+	}
+
+	aTree := AccessTree{
+		Root: &rootNode,
+	}
+
+	D := KeyGen(aTree, MK)
+
+	attrs := make(AttributeSet)
+
+	C := Encrypt(M, attrs, PP)
+	_, success := Decrypt(C, D)
+
+	if success {
+		t.Errorf("Decryption using attributes not held by user succeeded")
 	}
 
 }

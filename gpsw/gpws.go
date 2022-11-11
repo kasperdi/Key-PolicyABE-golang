@@ -2,7 +2,6 @@ package gpsw
 
 import (
 	"crypto/rand"
-	"fmt"
 	"log"
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
@@ -149,7 +148,14 @@ func EvalPoly(poly Polynomial, arg int) *bls.Scalar {
 }
 
 func Decrypt(C CipherText, D DecryptionKey) (*bls.Gt, bool) {
-	return DecryptNode(C, D, D.T.Root)
+	F_Root, success := DecryptNode(C, D, D.T.Root)
+	if !success {
+		return nil, false
+	}
+	result := new(bls.Gt)
+	result.Inv(F_Root)
+	result.Mul(result, C.EPrime)
+	return result, true
 
 }
 
@@ -158,14 +164,6 @@ func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, boo
 		i := *x.Attribute
 		_, contains := C.attrs[i]
 		if contains {
-
-			fmt.Println("E_i")
-			fmt.Println(C.E[i].String())
-			fmt.Println("Parent")
-			fmt.Println(x.Parent)
-			fmt.Println("D_x")
-			fmt.Println(D.D[x].String())
-
 			return bls.Pair(D.D[x], C.E[i]), true
 		} else {
 			return nil, false
@@ -204,9 +202,10 @@ func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, boo
 	// Compute and return Fx
 	Fx := new(bls.Gt)
 	Fx.SetIdentity()
-	for _, Fz := range Sx {
+
+	for z, Fz := range Sx {
 		i_scalar := new(bls.Scalar)
-		i_scalar.SetUint64(uint64(x.Index))
+		i_scalar.SetUint64(uint64(z.Index))
 
 		Fz_exp_lagrange := new(bls.Gt)
 		Fz_exp_lagrange.Exp(Fz, calculateLagrangeCoefficientZero(i_scalar, SxPrime))
