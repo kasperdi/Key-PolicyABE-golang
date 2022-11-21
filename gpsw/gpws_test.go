@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
+	act "github.com/kasperdi/Key-PolicyABE-golang/accesstree"
 )
 
 var Empty struct{}
@@ -27,50 +28,19 @@ func TestEncryptDecrypt(t *testing.T) {
 	M := arbitraryGtPoint(32)
 
 	MK, PP := Setup(3)
-
-	att0 := new(int)
-	*att0 = 0
-	att1 := new(int)
-	*att1 = 1
-
-	rootNode := AccessTreeNode{
-		Parent:   nil,
-		Children: make([]*AccessTreeNode, 0),
-		Index:    1,
-		K:        2,
-	}
-
-	childNode := AccessTreeNode{
-		Attribute: att0,
-		Parent:    &rootNode,
-		Children:  make([]*AccessTreeNode, 0),
-		Index:     1,
-		K:         1,
-	}
-
-	childNode2 := AccessTreeNode{
-		Attribute: att1,
-		Parent:    &rootNode,
-		Children:  make([]*AccessTreeNode, 0),
-		Index:     2,
-		K:         1,
-	}
-
-	rootNode.Children = append(rootNode.Children, &childNode)
-	rootNode.Children = append(rootNode.Children, &childNode2)
-
-	aTree := AccessTree{
-		Root: &rootNode,
-	}
-
+	aTree := act.MakeTree(act.MakeBranch(2,
+		act.MakeLeaf(0),
+		act.MakeLeaf(1),
+	))
 	D := KeyGen(aTree, MK)
-
 	attrs := make(AttributeSet)
 	attrs[0] = Empty
 	attrs[1] = Empty
-
 	C := Encrypt(M, attrs, PP)
-	M_decrypted, _ := Decrypt(C, D)
+	M_decrypted, success := Decrypt(C, D)
+	if !success {
+		t.Errorf("Error: Decryption failed!")
+	}
 
 	if !M.IsEqual(M_decrypted) {
 		t.Errorf("Error: Decrypt(Encrypt(M)) != M")
@@ -82,29 +52,12 @@ func TestEncryptDecryptTNotSat(t *testing.T) {
 	M := arbitraryGtPoint(32)
 
 	MK, PP := Setup(3)
-
-	att0 := new(int)
-	*att0 = 0
-
-	rootNode := AccessTreeNode{
-		Attribute: att0,
-		Parent:    nil,
-		Children:  make([]*AccessTreeNode, 0),
-		Index:     1,
-		K:         1,
-	}
-
-	aTree := AccessTree{
-		Root: &rootNode,
-	}
-
+	aTree := act.MakeTree(act.MakeLeaf(0))
 	D := KeyGen(aTree, MK)
-
 	attrs := make(AttributeSet)
 
 	C := Encrypt(M, attrs, PP)
 	_, success := Decrypt(C, D)
-
 	if success {
 		t.Errorf("Decryption using attributes not held by user succeeded")
 	}

@@ -5,6 +5,8 @@ import (
 	"log"
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
+	act "github.com/kasperdi/Key-PolicyABE-golang/accesstree"
+	sss "github.com/kasperdi/Key-PolicyABE-golang/shamirsecretsharing"
 )
 
 type MasterKey struct {
@@ -25,24 +27,10 @@ type CipherText struct {
 	E      map[int]*bls.G2
 }
 
-type AccessTree struct {
-	Root *AccessTreeNode
-}
-
-type AccessTreeNode struct {
-	Attribute *int            // only exists if leaf
-	Parent    *AccessTreeNode // only exists if not root
-	Children  []*AccessTreeNode
-	Index     int
-	K         int
-}
-
 type DecryptionKey struct {
-	D map[*AccessTreeNode]*bls.G1
-	T AccessTree
+	D map[*act.AccessTreeNode]*bls.G1
+	T act.AccessTree
 }
-
-type Polynomial []bls.Scalar
 
 func Setup(n int) (MasterKey, PublicParameters) {
 	// Generate master key
@@ -88,63 +76,33 @@ func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) CipherText {
 	return CipherText{attrs, EPrime, E}
 }
 
-func KeyGen(tree AccessTree, mk MasterKey) DecryptionKey {
+func KeyGen(tree act.AccessTree, mk MasterKey) DecryptionKey {
 
 	// First choose q_x for each node x top down starting from the root
-	polyMap := make(map[*AccessTreeNode]Polynomial)
-	polyMap = GenPolyRecursive(mk.Y, tree.Root, polyMap)
+	polyMap := sss.GenTreePolynomials(mk.Y, tree)
 
 	// Compute D_x
-	Dxmap := make(map[*AccessTreeNode]*bls.G1)
+	Dxmap := make(map[*act.AccessTreeNode]*bls.G1)
 
-	for key, val := range polyMap {
+	for node, poly := range polyMap {
 		// If node is leaf
-		if len(key.Children) == 0 {
+		if len(node.Children) == 0 {
 
-			i := *key.Attribute
+			i := *node.Attribute
 
 			DxExponent := new(bls.Scalar)
 
 			DxExponent.Inv(mk.T[i])
-			DxExponent.Mul(EvalPoly(val, 0), DxExponent)
+			DxExponent.Mul(poly.Eval(0), DxExponent)
 
 			Dx := new(bls.G1)
 			Dx.ScalarMult(DxExponent, bls.G1Generator())
-			Dxmap[key] = Dx
+			Dxmap[node] = Dx
 		}
 	}
 
 	return DecryptionKey{D: Dxmap, T: tree}
 
-}
-
-func GenPolyRecursive(q0 *bls.Scalar, x *AccessTreeNode, polyMap map[*AccessTreeNode]Polynomial) map[*AccessTreeNode]Polynomial {
-	resMap := polyMap
-	// degree of each node d_x = k_x - 1
-	currentPoly := constructSecretPoly(*q0, x.K-1)
-	resMap[x] = currentPoly
-
-	for _, val := range x.Children {
-		resMap = GenPolyRecursive(EvalPoly(currentPoly, val.Index), val, resMap)
-	}
-
-	return resMap
-}
-
-func EvalPoly(poly Polynomial, arg int) *bls.Scalar {
-	argument := new(bls.Scalar)
-	argument.SetUint64(uint64(arg))
-
-	result := new(bls.Scalar)
-	result.Set(&poly[0])
-	for i := 1; i < len(poly); i++ {
-		toAdd := new(bls.Scalar)
-		toAdd.Mul(&poly[i], argument)
-
-		result.Add(result, toAdd)
-	}
-
-	return result
 }
 
 func Decrypt(C CipherText, D DecryptionKey) (*bls.Gt, bool) {
@@ -159,7 +117,7 @@ func Decrypt(C CipherText, D DecryptionKey) (*bls.Gt, bool) {
 
 }
 
-func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, bool) {
+func DecryptNode(C CipherText, D DecryptionKey, x *act.AccessTreeNode) (*bls.Gt, bool) {
 	if x.Attribute != nil { // Node is a leaf node
 		i := *x.Attribute
 		_, contains := C.attrs[i]
@@ -171,9 +129,10 @@ func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, boo
 
 	}
 	// Otherwise recurse
-	F := make(map[*AccessTreeNode]*bls.Gt)
+	F := make(map[*act.AccessTreeNode]*bls.Gt)
 	for _, z := range x.Children {
 		Fz, success := DecryptNode(C, D, z)
+		println("decrypted node", z.Index, "and got", success)
 		if success {
 			F[z] = Fz
 		}
@@ -181,11 +140,12 @@ func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, boo
 
 	// If not enough F_z acquired, i.e. less than k_x child nodes returned true when decrypting them
 	if len(F) < x.K {
+		log.Printf("NEEDED %d nodes but got %d", x.K, len(F))
 		return nil, false
 	}
 
 	// Create sets S_x, S'_x, this is not very clean code
-	Sx := make(map[*AccessTreeNode]*bls.Gt)
+	Sx := make(map[*act.AccessTreeNode]*bls.Gt)
 	SxPrime := make([]*bls.Scalar, 0)
 	for z, Fz := range F {
 		Sx[z] = Fz
@@ -208,47 +168,10 @@ func DecryptNode(C CipherText, D DecryptionKey, x *AccessTreeNode) (*bls.Gt, boo
 		i_scalar.SetUint64(uint64(z.Index))
 
 		Fz_exp_lagrange := new(bls.Gt)
-		Fz_exp_lagrange.Exp(Fz, calculateLagrangeCoefficientZero(i_scalar, SxPrime))
+		Fz_exp_lagrange.Exp(Fz, sss.CalculateLagrangeCoefficientZero(i_scalar, SxPrime))
 
 		Fx.Mul(Fx, Fz_exp_lagrange)
 	}
 
 	return Fx, true
-}
-
-func calculateLagrangeCoefficientZero(i *bls.Scalar, s []*bls.Scalar) *bls.Scalar {
-	res := new(bls.Scalar)
-	res.SetOne()
-
-	for _, j := range s {
-		if i.IsEqual(j) == 1 {
-			continue
-		}
-
-		negJ := new(bls.Scalar)
-		negJ.Set(j)
-		negJ.Neg()
-
-		iMinusJInv := new(bls.Scalar)
-		iMinusJInv.Sub(i, j)
-		iMinusJInv.Inv(iMinusJInv)
-
-		coeff := new(bls.Scalar)
-		coeff.Mul(negJ, iMinusJInv)
-
-		res.Mul(res, coeff)
-	}
-
-	return res
-}
-
-func constructSecretPoly(secret bls.Scalar, deg int) Polynomial {
-	poly := make([]bls.Scalar, deg+1)
-	poly[0] = secret
-	for i := 1; i < deg+1; i++ {
-		coefficient := new(bls.Scalar)
-		coefficient.Random(rand.Reader)
-		poly[i] = *coefficient
-	}
-	return poly
 }
