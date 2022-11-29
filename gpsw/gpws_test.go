@@ -63,3 +63,61 @@ func TestEncryptDecryptTNotSat(t *testing.T) {
 	}
 
 }
+
+func BenchmarkSetup(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		Setup(2)
+	}
+}
+
+func BenchmarkExtract(b *testing.B) {
+	mkey, _ := Setup(2)
+
+	tree := act.MakeTree(act.MakeBranch(2,
+		act.MakeLeaf(0),
+		act.MakeLeaf(1),
+	))
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		KeyGen(tree, mkey)
+	}
+}
+
+func BenchmarkEncrypt(b *testing.B) {
+	M := arbitraryGtPoint(32)
+
+	_, pp := Setup(2)
+
+	attrs := make(map[int]struct{})
+	attrs[0] = Empty
+	attrs[1] = Empty
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Encrypt(M, attrs, pp)
+	}
+}
+
+func BenchmarkDecrypt(b *testing.B) {
+	M := arbitraryGtPoint(32)
+
+	attrs := make(map[int]struct{})
+	attrs[0] = Empty
+	attrs[1] = Empty
+
+	mkey, pp := Setup(2)
+
+	tree := act.MakeTree(act.MakeBranch(2,
+		act.MakeLeaf(0),
+		act.MakeLeaf(1),
+	))
+
+	dID := KeyGen(tree, mkey)
+	c := Encrypt(M, attrs, pp)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		Decrypt(c, dID)
+	}
+}

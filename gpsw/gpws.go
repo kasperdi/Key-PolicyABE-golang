@@ -32,6 +32,7 @@ type DecryptionKey struct {
 	T act.AccessTree
 }
 
+// Setup generates a set of public parameters and a master key for the given number of attributes.
 func Setup(n int) (MasterKey, PublicParameters) {
 	// Generate master key
 	y := new(bls.Scalar)
@@ -39,20 +40,24 @@ func Setup(n int) (MasterKey, PublicParameters) {
 	if err != nil {
 		log.Fatal("Error while generating master key:", err)
 	}
+
 	// n denotes the amount of attributes
 	t := make([]*bls.Scalar, n)
 	for attribute := 0; attribute < n; attribute++ {
 		t[attribute] = new(bls.Scalar)
 		t[attribute].Random(rand.Reader)
 	}
+
 	// Generate public parameters
 	T := make([]*bls.G2, n)
 	for attribute := 0; attribute < n; attribute++ {
 		T[attribute] = new(bls.G2)
 		T[attribute].ScalarMult(t[attribute], bls.G2Generator())
 	}
+
 	Y := bls.Pair(bls.G1Generator(), bls.G2Generator())
 	Y.Exp(Y, y)
+
 	return MasterKey{T: t, Y: y}, PublicParameters{BigT: T, BigY: Y}
 }
 
@@ -77,7 +82,6 @@ func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) CipherText {
 }
 
 func KeyGen(tree act.AccessTree, mk MasterKey) DecryptionKey {
-
 	// First choose q_x for each node x top down starting from the root
 	polyMap := sss.GenTreePolynomials(mk.Y, tree)
 
@@ -132,7 +136,6 @@ func DecryptNode(C CipherText, D DecryptionKey, x *act.AccessTreeNode) (*bls.Gt,
 	F := make(map[*act.AccessTreeNode]*bls.Gt)
 	for _, z := range x.Children {
 		Fz, success := DecryptNode(C, D, z)
-		println("decrypted node", z.Index, "and got", success)
 		if success {
 			F[z] = Fz
 		}
