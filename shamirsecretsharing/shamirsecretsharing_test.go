@@ -37,7 +37,6 @@ func TestEvalPolynomial(t *testing.T) {
 	if poly2.Eval(3).IsEqual(&expected[2]) == 0 {
 		t.Errorf("Expected p(3) = 72, got %s", poly.Eval(3).String())
 	}
-
 }
 
 func TestSecretShare(t *testing.T) {

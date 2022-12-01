@@ -10,7 +10,7 @@ import (
 
 var Empty struct{}
 
-func arbitraryGtPoint(n int) *bls.Gt {
+func ArbitraryGtPoint(n int) *bls.Gt {
 	M1_bytes := make([]byte, n)
 	rand.Read(M1_bytes)
 	G1 := new(bls.G1)
@@ -25,9 +25,13 @@ func arbitraryGtPoint(n int) *bls.Gt {
 }
 
 func TestEncryptDecrypt(t *testing.T) {
-	M := arbitraryGtPoint(32)
+	M := ArbitraryGtPoint(32)
 
-	MK, PP := Setup(3)
+	MK, PP, err := Setup(3)
+	if err != nil {
+		t.Error(err)
+	}
+
 	aTree := act.MakeTree(act.MakeBranch(2,
 		act.MakeLeaf(0),
 		act.MakeLeaf(1),
@@ -36,7 +40,12 @@ func TestEncryptDecrypt(t *testing.T) {
 	attrs := make(AttributeSet)
 	attrs[0] = Empty
 	attrs[1] = Empty
-	C := Encrypt(M, attrs, PP)
+
+	C, err := Encrypt(M, attrs, PP)
+	if err != nil {
+		t.Error(err)
+	}
+
 	M_decrypted, success := Decrypt(C, D)
 	if !success {
 		t.Errorf("Error: Decryption failed!")
@@ -49,75 +58,25 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptTNotSat(t *testing.T) {
-	M := arbitraryGtPoint(32)
+	M := ArbitraryGtPoint(32)
 
-	MK, PP := Setup(3)
+	MK, PP, err := Setup(3)
+	if err != nil {
+		t.Error(err)
+	}
+
 	aTree := act.MakeTree(act.MakeLeaf(0))
 	D := KeyGen(aTree, MK)
 	attrs := make(AttributeSet)
 
-	C := Encrypt(M, attrs, PP)
+	C, err := Encrypt(M, attrs, PP)
+	if err != nil {
+		t.Error(err)
+	}
+
 	_, success := Decrypt(C, D)
 	if success {
 		t.Errorf("Decryption using attributes not held by user succeeded")
 	}
 
-}
-
-func BenchmarkSetup(b *testing.B) {
-	for i := 0; i < b.N; i++ {
-		Setup(2)
-	}
-}
-
-func BenchmarkExtract(b *testing.B) {
-	mkey, _ := Setup(2)
-
-	tree := act.MakeTree(act.MakeBranch(2,
-		act.MakeLeaf(0),
-		act.MakeLeaf(1),
-	))
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		KeyGen(tree, mkey)
-	}
-}
-
-func BenchmarkEncrypt(b *testing.B) {
-	M := arbitraryGtPoint(32)
-
-	_, pp := Setup(2)
-
-	attrs := make(map[int]struct{})
-	attrs[0] = Empty
-	attrs[1] = Empty
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Encrypt(M, attrs, pp)
-	}
-}
-
-func BenchmarkDecrypt(b *testing.B) {
-	M := arbitraryGtPoint(32)
-
-	attrs := make(map[int]struct{})
-	attrs[0] = Empty
-	attrs[1] = Empty
-
-	mkey, pp := Setup(2)
-
-	tree := act.MakeTree(act.MakeBranch(2,
-		act.MakeLeaf(0),
-		act.MakeLeaf(1),
-	))
-
-	dID := KeyGen(tree, mkey)
-	c := Encrypt(M, attrs, pp)
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		Decrypt(c, dID)
-	}
 }

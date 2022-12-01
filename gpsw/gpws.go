@@ -2,6 +2,7 @@ package gpsw
 
 import (
 	"crypto/rand"
+	"fmt"
 	"log"
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
@@ -33,12 +34,12 @@ type DecryptionKey struct {
 }
 
 // Setup generates a set of public parameters and a master key for the given number of attributes.
-func Setup(n int) (MasterKey, PublicParameters) {
+func Setup(n int) (MasterKey, PublicParameters, error) {
 	// Generate master key
 	y := new(bls.Scalar)
 	err := y.Random(rand.Reader) // Generate y /in Zp where p is order of G_1 and G_2
 	if err != nil {
-		log.Fatal("Error while generating master key:", err)
+		return MasterKey{}, PublicParameters{}, fmt.Errorf("error while generating master key: %v", err)
 	}
 
 	// n denotes the amount of attributes
@@ -58,14 +59,14 @@ func Setup(n int) (MasterKey, PublicParameters) {
 	Y := bls.Pair(bls.G1Generator(), bls.G2Generator())
 	Y.Exp(Y, y)
 
-	return MasterKey{T: t, Y: y}, PublicParameters{BigT: T, BigY: Y}
+	return MasterKey{T: t, Y: y}, PublicParameters{BigT: T, BigY: Y}, nil
 }
 
-func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) CipherText {
+func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) (CipherText, error) {
 	s := new(bls.Scalar)
 	err := s.Random(rand.Reader) // Generate s /in Zp
 	if err != nil {
-		log.Fatal("Error while generating s in encrypt:", err)
+		return CipherText{}, fmt.Errorf("error while generating s in encrypt: %v", err)
 	}
 
 	EPrime := new(bls.Gt)
@@ -78,7 +79,7 @@ func Encrypt(M *bls.Gt, attrs AttributeSet, PK PublicParameters) CipherText {
 		E[i].ScalarMult(s, PK.BigT[i])
 	}
 
-	return CipherText{attrs, EPrime, E}
+	return CipherText{attrs, EPrime, E}, nil
 }
 
 func KeyGen(tree act.AccessTree, mk MasterKey) DecryptionKey {
@@ -138,6 +139,10 @@ func DecryptNode(C CipherText, D DecryptionKey, x *act.AccessTreeNode) (*bls.Gt,
 		Fz, success := DecryptNode(C, D, z)
 		if success {
 			F[z] = Fz
+			if len(F) >= x.K {
+				// if we have enough, stop looking
+				break
+			}
 		}
 	}
 
