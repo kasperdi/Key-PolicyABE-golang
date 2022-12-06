@@ -117,24 +117,24 @@ func BenchmarkDecryptLC(b *testing.B) {
 	runBenchmarkDecrypt(b, LC_ATTRIBUTES, makeAttrs(1, 2), makeExampleTree())
 }
 
-// ==============================
-// Scenario: Google-level company
-// ==============================
+// ===========================
+// Scenario: Aarhus University
+// ===========================
 
-const G_ATTRIBUTES = 5000
+const AU_ATTRIBUTES = 50000
 
 func BenchmarkSetupG(b *testing.B) {
-	runBenchmarkSetup(b, G_ATTRIBUTES)
+	runBenchmarkSetup(b, AU_ATTRIBUTES)
 }
 
 func BenchmarkExtractG(b *testing.B) {
-	runBenchmarkExtract(b, G_ATTRIBUTES, makeExampleTree())
+	runBenchmarkExtract(b, AU_ATTRIBUTES, makeExampleTree())
 }
 
 func BenchmarkEncryptG(b *testing.B) {
-	runBenchmarkEncrypt(b, G_ATTRIBUTES, makeAttrs(1, 2))
+	runBenchmarkEncrypt(b, AU_ATTRIBUTES, makeAttrs(1, 2))
 }
 
 func BenchmarkDecryptG(b *testing.B) {
-	runBenchmarkDecrypt(b, G_ATTRIBUTES, makeAttrs(1, 2), makeExampleTree())
+	runBenchmarkDecrypt(b, AU_ATTRIBUTES, makeAttrs(1, 2), makeExampleTree())
 }
