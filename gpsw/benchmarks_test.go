@@ -1,6 +1,8 @@
 package gpsw
 
 import (
+	"fmt"
+	"math"
 	"testing"
 
 	act "github.com/kasperdi/Key-PolicyABE-golang/accesstree"
@@ -55,6 +57,15 @@ func makeAttrs(attrs ...int) map[int]struct{} {
 
 	return attrMap
 }
+func makeNAttributes(n int) map[int]struct{} {
+	attrMap := make(map[int]struct{})
+
+	for i := 1; i <= n; i++ {
+		attrMap[i] = Empty
+	}
+
+	return attrMap
+}
 
 func makeExampleTree() act.AccessTree {
 	// should enable both point to point and role-based.
@@ -71,6 +82,50 @@ func makeExampleTree() act.AccessTree {
 		),
 	)
 	return tree
+}
+
+func makeTreeNodesAndKxN(n int) act.AccessTree {
+	// should enable both point to point and role-based.
+	// assuming each person can be identified by:
+	// 1. their identity, or
+	// 2. their role and location (or something like that).
+	leaves := make([]*act.AccessTreeNode, n)
+	for i := 0; i < n; i++ {
+		leaves[i] = act.MakeLeaf(i + 1)
+	}
+	tree := act.MakeTree(
+		act.MakeBranch(n,
+			leaves...,
+		),
+	)
+	return tree
+}
+
+func BenchmarkSetup(b *testing.B) {
+	for i := 0; i < 17; i++ {
+		b.Run(fmt.Sprintf("Setup with 2^%d %s", i, "attributes"), func(b *testing.B) { runBenchmarkSetup(b, int(math.Pow(2, float64(i)))) })
+	}
+}
+
+func BenchmarkEncrypt(b *testing.B) {
+	for i := 0; i < 100; i++ {
+		b.Run(fmt.Sprintf("Encrypt under%d %s", i, "attributes"), func(b *testing.B) { runBenchmarkEncrypt(b, 100, makeNAttributes(i)) })
+	}
+}
+
+func BenchmarkDecrypt(b *testing.B) {
+	for i := 1; i < 100; i++ {
+		acctree := makeTreeNodesAndKxN(i)
+		b.Run(fmt.Sprintf("Decrypt with tree of size %d", i), func(b *testing.B) { runBenchmarkDecrypt(b, 100, makeNAttributes(99), acctree) })
+	}
+}
+
+func BenchmarkKeyGen(b *testing.B) {
+
+	for i := 1; i < 100; i++ {
+		acctree := makeTreeNodesAndKxN(i)
+		b.Run(fmt.Sprintf("Keygen with tree of size %d", i), func(b *testing.B) { runBenchmarkExtract(b, 100, acctree) })
+	}
 }
 
 // =======================
