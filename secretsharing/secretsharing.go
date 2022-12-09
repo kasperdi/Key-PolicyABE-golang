@@ -1,4 +1,4 @@
-package shamirsecretsharing
+package secretsharing
 
 import (
 	"crypto/rand"

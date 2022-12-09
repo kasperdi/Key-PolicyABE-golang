@@ -7,7 +7,7 @@ import (
 
 	bls "github.com/cloudflare/circl/ecc/bls12381"
 	act "github.com/kasperdi/Key-PolicyABE-golang/accesstree"
-	sss "github.com/kasperdi/Key-PolicyABE-golang/shamirsecretsharing"
+	sss "github.com/kasperdi/Key-PolicyABE-golang/secretsharing"
 )
 
 type MasterKey struct {
