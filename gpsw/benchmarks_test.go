@@ -87,10 +87,6 @@ func makeExampleTree() act.AccessTree {
 }
 
 func makeTreeNodesAndKxN(n int) act.AccessTree {
-	// should enable both point to point and role-based.
-	// assuming each person can be identified by:
-	// 1. their identity, or
-	// 2. their role and location (or something like that).
 	leaves := make([]*act.AccessTreeNode, n)
 	for i := 0; i < n; i++ {
 		leaves[i] = act.MakeLeaf(i + 1)
