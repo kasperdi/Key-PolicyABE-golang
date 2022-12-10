@@ -57,6 +57,28 @@ func TestEncryptDecrypt(t *testing.T) {
 
 }
 
+func TestEncryptDecryptForest(t *testing.T) {
+	for i := 15; i <= 15; i++ {
+		acctree := makeTreeNodesAndKxN(i)
+		attrs := makeNAttributes(99)
+		M := ArbitraryGtPoint(32)
+
+		mkey, pp, _ := Setup(100)
+
+		dkey := KeyGen(acctree, mkey)
+		c, _ := Encrypt(M, attrs, pp)
+
+		M_decrypted, success := Decrypt(c, dkey)
+		if !success {
+			t.Errorf("Error: Decryption failed!")
+		}
+
+		if !M.IsEqual(M_decrypted) {
+			t.Errorf("Error: Decrypt(Encrypt(M)) != M")
+		}
+	}
+}
+
 func TestEncryptDecryptTNotSat(t *testing.T) {
 	M := ArbitraryGtPoint(32)
 
@@ -79,4 +101,22 @@ func TestEncryptDecryptTNotSat(t *testing.T) {
 		t.Errorf("Decryption using attributes not held by user succeeded")
 	}
 
+}
+
+func TestEncryptDecryptForestNotSat(t *testing.T) {
+	for i := 1; i < 20; i++ {
+		acctree := makeTreeNodesAndKxN(i)
+		attrs := makeNAttributes(0)
+		M := ArbitraryGtPoint(32)
+
+		mkey, pp, _ := Setup(100)
+
+		dkey := KeyGen(acctree, mkey)
+		c, _ := Encrypt(M, attrs, pp)
+
+		_, success := Decrypt(c, dkey)
+		if success {
+			t.Errorf("Decryption using attributes not held by user succeeded")
+		}
+	}
 }

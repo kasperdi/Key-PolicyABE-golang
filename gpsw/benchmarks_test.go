@@ -1,10 +1,12 @@
 package gpsw
 
 import (
+	"crypto/rand"
 	"fmt"
 	"math"
 	"testing"
 
+	bls "github.com/cloudflare/circl/ecc/bls12381"
 	act "github.com/kasperdi/Key-PolicyABE-golang/accesstree"
 )
 
@@ -125,6 +127,23 @@ func BenchmarkKeyGen(b *testing.B) {
 	for i := 1; i < 100; i++ {
 		acctree := makeTreeNodesAndKxN(i)
 		b.Run(fmt.Sprintf("Keygen with tree of size %d", i), func(b *testing.B) { runBenchmarkExtract(b, 100, acctree) })
+	}
+}
+
+func BenchmarkPairing(b *testing.B) {
+	M1_bytes := make([]byte, 32)
+	rand.Read(M1_bytes)
+	G1 := new(bls.G1)
+	G1.Hash(M1_bytes, nil)
+
+	M2_bytes := make([]byte, 32)
+	rand.Read(M2_bytes)
+	G2 := new(bls.G2)
+	G2.Hash(M2_bytes, nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		bls.Pair(G1, G2)
 	}
 }
 

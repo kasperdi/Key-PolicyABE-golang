@@ -24,7 +24,7 @@ timeMs = list(var['Time(ms)'])
 plt.figure(figsize=(10,10))
 plt.scatter(timeMs,NodesReq,marker=".",s=100,c="blue")
 plt.title("ABE Keygen runtime")
-plt.ylabel("Total # nodes that have to be satisfied")
+plt.ylabel("Total # nodes")
 plt.xlabel("Milliseconds")
 plt.show()
 
