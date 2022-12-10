@@ -47,18 +47,3 @@ func TestSecretShare(t *testing.T) {
 		t.Errorf("Expected p(0) = secret = 42, got %s", poly.Eval(0).String())
 	}
 }
-
-func TestLagrangeInterpolation(t *testing.T) {
-	poly := make([]*bls.Scalar, 9)
-	index := new(bls.Scalar)
-	index.SetUint64(2)
-	for i := 0; i < 9; i++ {
-		number := new(bls.Scalar)
-		number.SetUint64(uint64(i + 1))
-		poly[i] = number
-	}
-	test := CalculateLagrangeCoefficientZero(index, poly)
-	if 0 == 0 { // !!!!!!!!!!!!! Bare for at tjekke output
-		t.Errorf("Got %s", test.String())
-	}
-}

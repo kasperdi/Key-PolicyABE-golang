@@ -58,7 +58,7 @@ func TestEncryptDecrypt(t *testing.T) {
 }
 
 func TestEncryptDecryptForest(t *testing.T) {
-	for i := 15; i <= 15; i++ {
+	for i := 1; i <= 10; i++ {
 		acctree := makeTreeNodesAndKxN(i)
 		attrs := makeNAttributes(99)
 		M := ArbitraryGtPoint(32)
@@ -76,6 +76,75 @@ func TestEncryptDecryptForest(t *testing.T) {
 		if !M.IsEqual(M_decrypted) {
 			t.Errorf("Error: Decrypt(Encrypt(M)) != M")
 		}
+	}
+}
+
+func TestEncryptDecryptDeepTree(t *testing.T) {
+	twoleaves := make([]*act.AccessTreeNode, 2)
+	twoleaves[0] = act.MakeLeaf(1)
+	twoleaves[1] = act.MakeLeaf(2)
+	acctree := act.MakeTree(
+		act.MakeBranch(1,
+			act.MakeBranch(3,
+				act.MakeBranch(1,
+					act.MakeBranch(2,
+						twoleaves...,
+					),
+				), act.MakeLeaf(3), act.MakeLeaf(4),
+			),
+		),
+	)
+
+	for i := 100; i <= 100; i++ {
+		attrs := makeNAttributes(99)
+		M := ArbitraryGtPoint(32)
+
+		mkey, pp, _ := Setup(100)
+
+		dkey := KeyGen(acctree, mkey)
+		c, _ := Encrypt(M, attrs, pp)
+
+		M_decrypted, success := Decrypt(c, dkey)
+		if !success {
+			t.Errorf("Error: Decryption failed!")
+		}
+
+		if !M.IsEqual(M_decrypted) {
+			t.Errorf("Error: Decrypt(Encrypt(M)) != M")
+		}
+	}
+}
+
+func TestEncrypt20AttributeTree(t *testing.T) {
+	leaves := make([]*act.AccessTreeNode, 10)
+	for i := 0; i < 10; i++ {
+		leaves[i] = act.MakeLeaf(i + 1)
+	}
+	acctree := act.MakeTree(
+		act.MakeBranch(5,
+			act.MakeBranch(5,
+				act.MakeBranch(3,
+					act.MakeBranch(10,
+						leaves...,
+					), act.MakeLeaf(19), act.MakeLeaf(20),
+				), act.MakeLeaf(11), act.MakeLeaf(12), act.MakeLeaf(13), act.MakeLeaf(14),
+			), act.MakeLeaf(15), act.MakeLeaf(16), act.MakeLeaf(17), act.MakeLeaf(18),
+		),
+	)
+
+	attrs := makeNAttributes(20)
+	M := ArbitraryGtPoint(32)
+	mkey, pp, _ := Setup(100)
+	dkey := KeyGen(acctree, mkey)
+	c, _ := Encrypt(M, attrs, pp)
+
+	M_decrypted, success := Decrypt(c, dkey)
+	if !success {
+		t.Errorf("Error: Decryption failed!")
+	}
+
+	if !M.IsEqual(M_decrypted) {
+		t.Errorf("Error: Decrypt(Encrypt(M)) != M")
 	}
 }
 
