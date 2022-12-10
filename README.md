@@ -1,6 +1,6 @@
 # Key-PolicyABE-golang
 
-For educational purposes only!
+Intended for learning purposes only!
 
 ## Evaluation
 
