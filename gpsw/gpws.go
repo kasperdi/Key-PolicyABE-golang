@@ -152,7 +152,7 @@ func DecryptNode(C CipherText, D DecryptionKey, x *act.AccessTreeNode) (*bls.Gt,
 		return nil, false
 	}
 
-	// Create sets S_x, S'_x, this is not very clean code
+	// Create sets S_x, S'_x
 	Sx := make(map[*act.AccessTreeNode]*bls.Gt)
 	SxPrime := make([]*bls.Scalar, 0)
 	for z, Fz := range F {
