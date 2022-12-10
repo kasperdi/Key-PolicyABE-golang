@@ -1,5 +1,7 @@
 # Key-PolicyABE-golang
 
+For educational purposes only!
+
 ## Evaluation
 
 ### Cases
